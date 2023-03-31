@@ -31,12 +31,7 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='multiprocessing_on_dill',
-
-    # Versions should comply with PEP440.  For a discussion on single-sourcing
-    # the version across setup.py and the project code, see
-    # https://packaging.python.org/en/latest/single_source_version.html
-    version=find_version(os.path.join(os.path.dirname(os.path.realpath(__file__)), "multiprocessing_on_dill/__init__.py")),
-
+    version="0.1.0",
     description='A friendly fork of multiprocessing which uses dill instead of pickle',
     long_description=long_description,
 
