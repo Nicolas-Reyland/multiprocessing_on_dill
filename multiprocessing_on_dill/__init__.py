@@ -12,6 +12,12 @@
 # Licensed to PSF under a Contributor Agreement.
 #
 
+#
+# Set the version number
+#
+
+__version__ = "0.1.0"
+
 import sys
 from . import context
 
