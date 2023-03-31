@@ -16,7 +16,7 @@
 # Set the version number
 #
 
-__version__ = "0.1.0"
+__version__ = "0.1.2"
 
 import sys
 from . import context

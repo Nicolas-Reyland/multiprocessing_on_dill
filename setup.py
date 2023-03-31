@@ -6,23 +6,6 @@ from codecs import open  # To use a consistent encoding
 from os import path
 
 
-def read(*names, **kwargs):
-    with io.open(
-        os.path.join(os.path.dirname(__file__), *names),
-        encoding=kwargs.get("encoding", "utf8")
-    ) as fp:
-        return fp.read()
-
-
-def find_version(*file_paths):
-    version_file = read(*file_paths)
-    version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]",
-                              version_file, re.M)
-    if version_match:
-        return version_match.group(1)
-    raise RuntimeError("Unable to find version string.")
-
-
 here = path.abspath(path.dirname(__file__))
 
 # Get the long description from the relevant file
@@ -31,7 +14,7 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='multiprocessing_on_dill',
-    version="0.1.0",
+    version="0.1.2",
     description='A friendly fork of multiprocessing which uses dill instead of pickle',
     long_description=long_description,
 
