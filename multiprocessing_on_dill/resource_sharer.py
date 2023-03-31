@@ -21,41 +21,22 @@ from . import util
 __all__ = ['stop']
 
 
-if sys.platform == 'win32':
-    __all__ += ['DupSocket']
+__all__ += ['DupFd']
 
-    class DupSocket(object):
-        '''Picklable wrapper for a socket.'''
-        def __init__(self, sock):
-            new_sock = sock.dup()
-            def send(conn, pid):
-                share = new_sock.share(pid)
-                conn.send_bytes(share)
-            self._id = _resource_sharer.register(send, new_sock.close)
+class DupFd(object):
+    '''Wrapper for fd which can be used at any time.'''
+    def __init__(self, fd):
+        new_fd = os.dup(fd)
+        def send(conn, pid):
+            reduction.send_handle(conn, new_fd, pid)
+        def close():
+            os.close(new_fd)
+        self._id = _resource_sharer.register(send, close)
 
-        def detach(self):
-            '''Get the socket.  This should only be called once.'''
-            with _resource_sharer.get_connection(self._id) as conn:
-                share = conn.recv_bytes()
-                return socket.fromshare(share)
-
-else:
-    __all__ += ['DupFd']
-
-    class DupFd(object):
-        '''Wrapper for fd which can be used at any time.'''
-        def __init__(self, fd):
-            new_fd = os.dup(fd)
-            def send(conn, pid):
-                reduction.send_handle(conn, new_fd, pid)
-            def close():
-                os.close(new_fd)
-            self._id = _resource_sharer.register(send, close)
-
-        def detach(self):
-            '''Get the fd.  This should only be called once.'''
-            with _resource_sharer.get_connection(self._id) as conn:
-                return reduction.recv_handle(conn)
+    def detach(self):
+        '''Get the fd.  This should only be called once.'''
+        with _resource_sharer.get_connection(self._id) as conn:
+            return reduction.recv_handle(conn)
 
 
 class _ResourceSharer(object):

@@ -41,18 +41,14 @@ class Queue(object):
         self._reader, self._writer = connection.Pipe(duplex=False)
         self._rlock = ctx.Lock()
         self._opid = os.getpid()
-        if sys.platform == 'win32':
-            self._wlock = None
-        else:
-            self._wlock = ctx.Lock()
+        self._wlock = ctx.Lock()
         self._sem = ctx.BoundedSemaphore(maxsize)
         # For use by concurrent.futures
         self._ignore_epipe = False
 
         self._after_fork()
 
-        if sys.platform != 'win32':
-            register_after_fork(self, Queue._after_fork)
+        register_after_fork(self, Queue._after_fork)
 
     def __getstate__(self):
         context.assert_spawning(self)
@@ -210,11 +206,8 @@ class Queue(object):
         nwait = notempty.wait
         bpopleft = buffer.popleft
         sentinel = _sentinel
-        if sys.platform != 'win32':
-            wacquire = writelock.acquire
-            wrelease = writelock.release
-        else:
-            wacquire = None
+        wacquire = writelock.acquire
+        wrelease = writelock.release
 
         while 1:
             try:
@@ -331,10 +324,7 @@ class SimpleQueue(object):
         self._reader, self._writer = connection.Pipe(duplex=False)
         self._rlock = ctx.Lock()
         self._poll = self._reader.poll
-        if sys.platform == 'win32':
-            self._wlock = None
-        else:
-            self._wlock = ctx.Lock()
+        self._wlock = ctx.Lock()
 
     def empty(self):
         return not self._poll()

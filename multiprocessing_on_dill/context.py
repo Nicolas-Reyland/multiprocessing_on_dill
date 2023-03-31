@@ -144,9 +144,7 @@ class BaseContext(object):
         '''Check whether this is a fake forked process in a frozen executable.
         If so then run code specified by commandline and exit.
         '''
-        if sys.platform == 'win32' and getattr(sys, 'frozen', False):
-            from .spawn import freeze_support
-            freeze_support()
+        pass
 
     def get_logger(self):
         '''Return package logger -- if it does not already exist then
@@ -253,13 +251,10 @@ class DefaultContext(BaseContext):
         return self._actual_context._name
 
     def get_all_start_methods(self):
-        if sys.platform == 'win32':
-            return ['spawn']
+        if reduction.HAVE_SEND_HANDLE:
+            return ['fork', 'spawn', 'forkserver']
         else:
-            if reduction.HAVE_SEND_HANDLE:
-                return ['fork', 'spawn', 'forkserver']
-            else:
-                return ['fork', 'spawn']
+            return ['fork', 'spawn']
 
 DefaultContext.__all__ = [x for x in dir(DefaultContext) if x[0] != '_']
 
@@ -267,68 +262,48 @@ DefaultContext.__all__ = [x for x in dir(DefaultContext) if x[0] != '_']
 # Context types for fixed start method
 #
 
-if sys.platform != 'win32':
+class ForkProcess(process.BaseProcess):
+    _start_method = 'fork'
+    @staticmethod
+    def _Popen(process_obj):
+        from .popen_fork import Popen
+        return Popen(process_obj)
 
-    class ForkProcess(process.BaseProcess):
-        _start_method = 'fork'
-        @staticmethod
-        def _Popen(process_obj):
-            from .popen_fork import Popen
-            return Popen(process_obj)
+class SpawnProcess(process.BaseProcess):
+    _start_method = 'spawn'
+    @staticmethod
+    def _Popen(process_obj):
+        from .popen_spawn_posix import Popen
+        return Popen(process_obj)
 
-    class SpawnProcess(process.BaseProcess):
-        _start_method = 'spawn'
-        @staticmethod
-        def _Popen(process_obj):
-            from .popen_spawn_posix import Popen
-            return Popen(process_obj)
+class ForkServerProcess(process.BaseProcess):
+    _start_method = 'forkserver'
+    @staticmethod
+    def _Popen(process_obj):
+        from .popen_forkserver import Popen
+        return Popen(process_obj)
 
-    class ForkServerProcess(process.BaseProcess):
-        _start_method = 'forkserver'
-        @staticmethod
-        def _Popen(process_obj):
-            from .popen_forkserver import Popen
-            return Popen(process_obj)
+class ForkContext(BaseContext):
+    _name = 'fork'
+    Process = ForkProcess
 
-    class ForkContext(BaseContext):
-        _name = 'fork'
-        Process = ForkProcess
+class SpawnContext(BaseContext):
+    _name = 'spawn'
+    Process = SpawnProcess
 
-    class SpawnContext(BaseContext):
-        _name = 'spawn'
-        Process = SpawnProcess
+class ForkServerContext(BaseContext):
+    _name = 'forkserver'
+    Process = ForkServerProcess
+    def _check_available(self):
+        if not reduction.HAVE_SEND_HANDLE:
+            raise ValueError('forkserver start method not available')
 
-    class ForkServerContext(BaseContext):
-        _name = 'forkserver'
-        Process = ForkServerProcess
-        def _check_available(self):
-            if not reduction.HAVE_SEND_HANDLE:
-                raise ValueError('forkserver start method not available')
-
-    _concrete_contexts = {
-        'fork': ForkContext(),
-        'spawn': SpawnContext(),
-        'forkserver': ForkServerContext(),
-    }
-    _default_context = DefaultContext(_concrete_contexts['fork'])
-
-else:
-
-    class SpawnProcess(process.BaseProcess):
-        _start_method = 'spawn'
-        @staticmethod
-        def _Popen(process_obj):
-            from .popen_spawn_win32 import Popen
-            return Popen(process_obj)
-
-    class SpawnContext(BaseContext):
-        _name = 'spawn'
-        Process = SpawnProcess
-
-    _concrete_contexts = {
-        'spawn': SpawnContext(),
-    }
-    _default_context = DefaultContext(_concrete_contexts['spawn'])
+_concrete_contexts = {
+    'fork': ForkContext(),
+    'spawn': SpawnContext(),
+    'forkserver': ForkServerContext(),
+}
+_default_context = DefaultContext(_concrete_contexts['fork'])
 
 #
 # Force the start method

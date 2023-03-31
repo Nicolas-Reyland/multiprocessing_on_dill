@@ -23,79 +23,43 @@ __all__ = ['BufferWrapper']
 # Inheritable class which wraps an mmap, and from which blocks can be allocated
 #
 
-if sys.platform == 'win32':
+class Arena(object):
+    if sys.platform == 'linux':
+        _dir_candidates = ['/dev/shm']
+    else:
+        _dir_candidates = []
 
-    import _winapi
+    def __init__(self, size, fd=-1):
+        self.size = size
+        self.fd = fd
+        if fd == -1:
+            self.fd, name = tempfile.mkstemp(
+                 prefix='pym-%d-'%os.getpid(),
+                 dir=self._choose_dir(size))
+            os.unlink(name)
+            util.Finalize(self, os.close, (self.fd,))
+            os.ftruncate(self.fd, size)
+        self.buffer = mmap.mmap(self.fd, self.size)
 
-    class Arena(object):
+    def _choose_dir(self, size):
+        # Choose a non-storage backed directory if possible,
+        # to improve performance
+        for d in self._dir_candidates:
+            st = os.statvfs(d)
+            if st.f_bavail * st.f_frsize >= size:  # enough free space?
+                return d
+        return util.get_temp_dir()
 
-        _rand = tempfile._RandomNameSequence()
+def reduce_arena(a):
+    if a.fd == -1:
+        raise ValueError('Arena is unpicklable because '
+                         'forking was enabled when it was created')
+    return rebuild_arena, (a.size, reduction.DupFd(a.fd))
 
-        def __init__(self, size):
-            self.size = size
-            for i in range(100):
-                name = 'pym-%d-%s' % (os.getpid(), next(self._rand))
-                buf = mmap.mmap(-1, size, tagname=name)
-                if _winapi.GetLastError() == 0:
-                    break
-                # We have reopened a preexisting mmap.
-                buf.close()
-            else:
-                raise FileExistsError('Cannot find name for new mmap')
-            self.name = name
-            self.buffer = buf
-            self._state = (self.size, self.name)
+def rebuild_arena(size, dupfd):
+    return Arena(size, dupfd.detach())
 
-        def __getstate__(self):
-            assert_spawning(self)
-            return self._state
-
-        def __setstate__(self, state):
-            self.size, self.name = self._state = state
-            self.buffer = mmap.mmap(-1, self.size, tagname=self.name)
-            # XXX Temporarily preventing buildbot failures while determining
-            # XXX the correct long-term fix. See issue 23060
-            #assert _winapi.GetLastError() == _winapi.ERROR_ALREADY_EXISTS
-
-else:
-
-    class Arena(object):
-        if sys.platform == 'linux':
-            _dir_candidates = ['/dev/shm']
-        else:
-            _dir_candidates = []
-
-        def __init__(self, size, fd=-1):
-            self.size = size
-            self.fd = fd
-            if fd == -1:
-                self.fd, name = tempfile.mkstemp(
-                     prefix='pym-%d-'%os.getpid(),
-                     dir=self._choose_dir(size))
-                os.unlink(name)
-                util.Finalize(self, os.close, (self.fd,))
-                os.ftruncate(self.fd, size)
-            self.buffer = mmap.mmap(self.fd, self.size)
-
-        def _choose_dir(self, size):
-            # Choose a non-storage backed directory if possible,
-            # to improve performance
-            for d in self._dir_candidates:
-                st = os.statvfs(d)
-                if st.f_bavail * st.f_frsize >= size:  # enough free space?
-                    return d
-            return util.get_temp_dir()
-
-    def reduce_arena(a):
-        if a.fd == -1:
-            raise ValueError('Arena is unpicklable because '
-                             'forking was enabled when it was created')
-        return rebuild_arena, (a.size, reduction.DupFd(a.fd))
-
-    def rebuild_arena(size, dupfd):
-        return Arena(size, dupfd.detach())
-
-    reduction.register(Arena, reduce_arena)
+reduction.register(Arena, reduce_arena)
 
 #
 # Class allowing allocation of chunks of memory from arenas

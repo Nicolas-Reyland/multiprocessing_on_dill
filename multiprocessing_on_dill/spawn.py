@@ -26,17 +26,10 @@ __all__ = ['_main', 'freeze_support', 'set_executable', 'get_executable',
 # People embedding Python want to modify it.
 #
 
-if sys.platform != 'win32':
-    WINEXE = False
-    WINSERVICE = False
-else:
-    WINEXE = (sys.platform == 'win32' and getattr(sys, 'frozen', False))
-    WINSERVICE = sys.executable.lower().endswith("pythonservice.exe")
+WINEXE = False
+WINSERVICE = False
 
-if WINSERVICE:
-    _python_exe = os.path.join(sys.exec_prefix, 'python.exe')
-else:
-    _python_exe = sys.executable
+_python_exe = sys.executable
 
 def set_executable(exe):
     global _python_exe
@@ -94,14 +87,9 @@ def spawn_main(pipe_handle, parent_pid=None, tracker_fd=None):
     Run code specified by data received over pipe
     '''
     assert is_forking(sys.argv), "Not forking"
-    if sys.platform == 'win32':
-        import msvcrt
-        new_handle = reduction.steal_handle(parent_pid, pipe_handle)
-        fd = msvcrt.open_osfhandle(new_handle, os.O_RDONLY)
-    else:
-        from . import semaphore_tracker
-        semaphore_tracker._semaphore_tracker._fd = tracker_fd
-        fd = pipe_handle
+    from . import semaphore_tracker
+    semaphore_tracker._semaphore_tracker._fd = tracker_fd
+    fd = pipe_handle
     exitcode = _main(fd)
     sys.exit(exitcode)
 
@@ -172,7 +160,7 @@ def get_preparation_data(name):
     main_mod_name = getattr(main_module.__spec__, "name", None)
     if main_mod_name is not None:
         d['init_main_from_name'] = main_mod_name
-    elif sys.platform != 'win32' or (not WINEXE and not WINSERVICE):
+    elif not WINEXE and not WINSERVICE:
         main_path = getattr(main_module, '__file__', None)
         if main_path is not None:
             if (not os.path.isabs(main_path) and

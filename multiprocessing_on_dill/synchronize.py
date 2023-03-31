@@ -52,7 +52,7 @@ class SemLock(object):
         if ctx is None:
             ctx = context._default_context.get_context()
         name = ctx.get_start_method()
-        unlink_now = sys.platform == 'win32' or name == 'fork'
+        unlink_now = name == 'fork'
         for i in range(100):
             try:
                 sl = self._semlock = _multiprocessing.SemLock(
@@ -68,10 +68,9 @@ class SemLock(object):
         util.debug('created semlock with handle %s' % sl.handle)
         self._make_methods()
 
-        if sys.platform != 'win32':
-            def _after_fork(obj):
-                obj._semlock._after_fork()
-            util.register_after_fork(self, _after_fork)
+        def _after_fork(obj):
+            obj._semlock._after_fork()
+        util.register_after_fork(self, _after_fork)
 
         if self._semlock.name is not None:
             # We only get here if we are on Unix with forking
@@ -101,10 +100,7 @@ class SemLock(object):
     def __getstate__(self):
         context.assert_spawning(self)
         sl = self._semlock
-        if sys.platform == 'win32':
-            h = context.get_spawning_popen().duplicate_for_child(sl.handle)
-        else:
-            h = sl.handle
+        h = sl.handle
         return (h, sl.kind, sl.maxvalue, sl.name)
 
     def __setstate__(self, state):
